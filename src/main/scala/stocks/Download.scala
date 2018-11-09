@@ -1,54 +1,74 @@
 package stocks
 
 import java.io.{File, FileWriter}
+import java.time.LocalDate
+import java.util.concurrent.Executors
 
 import ujson.Js.Value
 
-import scala.util.{Random, Try}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
+import scala.util.Try
 
 object Download extends App {
-  val random = new Random()
-  val stocks = List("0005.HK", "0006.HK")
-  val apiKey = args(0)
-  val allSymbols = ujson.read(Download.getClass.getResourceAsStream("/hkex.json").readAllBytes())
-  val storage = new File("/media/steve/80f22ce4-343e-4811-b390-0b6a41449321/stocks-data")
+  val financialDataStorage = new File("/home/steve/hard-drive/stocks-data")
 
-  for(symbolJson <- allSymbols.arr) {
-    val symbol = symbolJson.str
-    val symbolFile = new File(storage, symbol)
-    if(!symbolFile.isFile) {
-      println(s"Downloading $symbol...")
-      val symbolDataResponse = requests.get(s"https://finance.yahoo.com/quote/$symbol/")
-      if(symbolDataResponse.statusCode == 200) {
-        val symbolData = symbolDataResponse.text()
-        val writer = new FileWriter(symbolFile)
-        writer.write(symbolData)
-        writer.close()
-      } else {
-        println(s"failed at $symbol with $symbolDataResponse")
+  val x = parseYahooStockData()
+  println(x.size)
+
+  def downloadAllStockDataFromYahoo(): Unit = {
+    implicit val threadPool = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(8))
+    val allSymbols = ujson.read(Download.getClass.getResourceAsStream("/hkex.json").readAllBytes())
+
+    for (symbolJson <- allSymbols.arr) {
+      val symbol = symbolJson.str
+      val symbolFile = new File(financialDataStorage, symbol)
+      if (!symbolFile.isFile) {
+        Future {
+          val symbolDataResponse = requests.get(s"https://finance.yahoo.com/quote/$symbol/")
+          println(s"Downloaded $symbol...")
+          if (symbolDataResponse.statusCode == 200) {
+            val symbolData = symbolDataResponse.text()
+            val writer = new FileWriter(symbolFile)
+            writer.write(symbolData)
+            writer.close()
+          } else {
+            println(s"failed at $symbol with $symbolDataResponse")
+          }
+        }
       }
-      Thread.sleep(2000 + random.nextInt(1500))
     }
   }
 
-  val hk0001 = new String(Download.getClass.getResourceAsStream("0001.html").readAllBytes())
-  //    requests.get("https://finance.yahoo.com/quote/0001.HK/")
-  val jsonElementStr = substringBetween(hk0001, "root.App.main = ", ";\n}(this));")
+  def parseYahooStockData() = {
+    val data = financialDataStorage.listFiles().toList.map(file => {
+      val stock = file.getName
+      val text = Source.fromFile(file).mkString
+      for {
+        jsonElementStr <- substringBetween(text, "root.App.main = ", ";\n}(this));")
+        json = ujson.read(jsonElementStr)
+        md <- findMarketData(stock, json)
+      } yield md
+    })
+    data.filter(_.isRight).map(rightOrThrow)
+  }
 
-  val financials = jsonElementStr.map(x => findMarketData(ujson.read(x)))
-  println(financials)
+  def rightOrThrow[E, A](x: Either[E, A]): A = {
+    val Right(r) = x
+    r
+  }
 
-
-  def findMarketData(root: Value) = Try {
+  def findMarketData(symbol: String, root: Value) = Try {
     val stores = root("context")("dispatcher")("stores")
     val summaryDetail = stores("QuoteSummaryStore")("summaryDetail")
     val dividendYield = summaryDetail("dividendYield")("raw").num
     val marketCap = summaryDetail("marketCap")("raw").num
     val beta = summaryDetail("beta")("raw").num
-    Financials(dividendYield, beta, marketCap)
-  }.toEither
+    Financials("yahoo", Stock("HKEX", symbol), LocalDate.of(2018, 11, 7), dividendYield, beta, marketCap)
+  }.toEither.left.map(_.getMessage)
 
   def downloadTimeSeries(symbol: String): TimeSeries = {
+    val apiKey = args(0)
     val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=$symbol&outputsize=compact&apikey=$apiKey"
     val response = requests.get(url)
     if (response.statusCode != 200) {
@@ -59,16 +79,16 @@ object Download extends App {
     null
   }
 
-  private def substringBetween(s: String, startDelimiter: String, endDelimiter: String): Option[String] = {
+  private def substringBetween(s: String, startDelimiter: String, endDelimiter: String): Either[String, String] = {
     val startIndex = s.indexOf(startDelimiter)
     if (startIndex == -1) {
-      None
+      Left(s"Couldn't find $startDelimiter")
     } else {
       val endIndex = s.indexOf(endDelimiter, startIndex)
       if (endIndex == -1) {
-        None
+        Left(s"Couldn't find $endDelimiter")
       } else {
-        Some(s.substring(startIndex + startDelimiter.length, endIndex))
+        Right(s.substring(startIndex + startDelimiter.length, endIndex))
       }
     }
   }
