@@ -64,16 +64,16 @@ object AlpahavantageDownloadApp extends App {
   var timeTaken = 0L
   var numDownloads = 0
   var numSkipped = 0
-  val symbolsByMarketCap = new FinancialsStore(mongo).sortedByMarketCap().take(50).map(_.stock.symbol)
-  val force = false
-  for (symbol <- symbolsByMarketCap) {
+  val symbolsByMarketCap = new FinancialsStore(mongo).sortedByMarketCap().drop(50).take(50).map(_.stock.symbol)
+  val force = true
+  for (symbol <- List("2800.HK", "3126.HK", "3084.HK", "3101.HK", "3110.HK", "3085.HK", "1299.HK")) {
     val lastDay = pricesDataStore.getLastUpdate(symbol)
     if (force || lastDay.isBefore(limitDay)) {
       Future {
         try {
           println(s"Downloading full data for $symbol")
           val startTime = System.currentTimeMillis()
-          val downloaded: Either[String, List[PriceData]] = AlpahavantageDownload.download(apiKey, Stock("HKEX", symbol), full = false)
+          val downloaded: Either[String, List[PriceData]] = AlpahavantageDownload.download(apiKey, Stock("HKEX", symbol), full = true)
           println(s"Download for $symbol done")
           if (downloaded.isRight) {
             val priceData = toRight(downloaded)

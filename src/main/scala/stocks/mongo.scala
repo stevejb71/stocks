@@ -16,12 +16,12 @@ object mongo {
     def financialsCollection(): MongoCollection[Financials] = stocksDatabase.getCollection[Financials]("Financials")
 
     def findAll[A: ClassTag](collectionName: String): List[A] = {
-      val collection: MongoCollection[A] = stocksDatabase.getCollection[A]("Indices")
+      val collection: MongoCollection[A] = stocksDatabase.getCollection[A](collectionName)
       Await.result(collection.find().toFuture(), Duration.Inf).toList
     }
 
     def find[A: ClassTag](collectionName: String, filters: Bson): List[A] = {
-      val collection: MongoCollection[A] = stocksDatabase.getCollection[A]("Indices")
+      val collection: MongoCollection[A] = stocksDatabase.getCollection[A](collectionName)
       Await.result(collection.find(filters).toFuture(), Duration.Inf).toList
     }
 
