@@ -11,11 +11,18 @@ import scala.reflect.ClassTag
 
 object mongo {
   implicit class ClientExtensions(client: MongoClient)(implicit val codecRegistry: CodecRegistry) {
-    private val stocksDatabase = client.getDatabase("STOCKS").withCodecRegistry(codecRegistry)
+    val stocksDatabase = client.getDatabase("STOCKS").withCodecRegistry(codecRegistry)
+    def priceDataCollection(): MongoCollection[PriceData] = stocksDatabase.getCollection[PriceData]("Prices")
+    def financialsCollection(): MongoCollection[Financials] = stocksDatabase.getCollection[Financials]("Financials")
 
     def findAll[A: ClassTag](collectionName: String): List[A] = {
       val collection: MongoCollection[A] = stocksDatabase.getCollection[A]("Indices")
       Await.result(collection.find().toFuture(), Duration.Inf).toList
+    }
+
+    def find[A: ClassTag](collectionName: String, filters: Bson): List[A] = {
+      val collection: MongoCollection[A] = stocksDatabase.getCollection[A]("Indices")
+      Await.result(collection.find(filters).toFuture(), Duration.Inf).toList
     }
 
     def replaceOne(collectionName: String, thing: AnyRef, filter: Bson): Unit = {

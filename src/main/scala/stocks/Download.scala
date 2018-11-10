@@ -70,17 +70,6 @@ object Download extends App {
     Financials("yahoo", Stock("HKEX", symbol), LocalDate.of(2018, 11, 7), dividendYield, beta, marketCap)
   }.toEither.left.map(_.getMessage)
 
-  def downloadTimeSeries(symbol: String): TimeSeries = {
-    val apiKey = args(0)
-    val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=$symbol&outputsize=compact&apikey=$apiKey"
-    val response = requests.get(url)
-    if (response.statusCode != 200) {
-      throw new Exception(s"Bad response ${response.statusCode}")
-    }
-    val jsonTimeSeries = ujson.read(response.data.text)
-    println(jsonTimeSeries("Time Series (Daily)"))
-    null
-  }
 
   private def substringBetween(s: String, startDelimiter: String, endDelimiter: String): Either[String, String] = {
     val startIndex = s.indexOf(startDelimiter)

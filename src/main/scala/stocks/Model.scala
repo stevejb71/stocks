@@ -8,9 +8,12 @@ import org.mongodb.scala.bson.codecs.Macros._
 import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
 import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
 
-case class PriceData(open: Double, close: Double, low: Double, high: Double, volume: Int)
-
-case class TimeSeries(symbol: Stock, prices: Map[LocalDate, PriceData])
+case class PriceData(stock: Stock, date: LocalDate, open: Double, close: Double, low: Double, high: Double, volume: Long) {
+  def primaryKeyFilter = Filters.and(
+    Filters.eq("stock", stock),
+    Filters.eq("date", date)
+  )
+}
 
 case class Financials(source: String, stock: Stock, date: LocalDate, dividendYield: Double, beta: Double, marketCap: Double) {
   def primaryKeyFilter = Filters.and(
@@ -31,7 +34,8 @@ object codecs {
   implicit val codecRegistry: CodecRegistry = fromRegistries(
     fromProviders(
       classOf[Stock],
-      classOf[Financials]
+      classOf[Financials],
+      classOf[PriceData]
     ),
     DEFAULT_CODEC_REGISTRY)
 }
