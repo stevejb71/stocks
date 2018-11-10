@@ -4,6 +4,7 @@ import java.io.{File, FileWriter}
 import java.time.LocalDate
 import java.util.concurrent.Executors
 
+import org.mongodb.scala.MongoClient
 import ujson.Js.Value
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -11,17 +12,19 @@ import scala.io.Source
 import scala.util.Try
 
 object Download extends App {
-  val financialDataStorage = new File("/home/steve/hard-drive/stocks-data")
+  val financialDataStorage = new File("/media/steve/80f22ce4-343e-4811-b390-0b6a41449321/stocks-data")
 
-  val x = parseYahooStockData()
-  println(x.size)
+//  downloadAllStockDataFromYahoo()
+
+  val x = parseYahooFinancials()
+  new FinancialsStore(MongoClient()).store(x)
 
   def downloadAllStockDataFromYahoo(): Unit = {
     implicit val threadPool = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(8))
     val allSymbols = ujson.read(Download.getClass.getResourceAsStream("/hkex.json").readAllBytes())
 
-    for (symbolJson <- allSymbols.arr) {
-      val symbol = symbolJson.str
+    for (symbolJson <- List("0005.HK")) {
+      val symbol = symbolJson//.str
       val symbolFile = new File(financialDataStorage, symbol)
       if (!symbolFile.isFile) {
         Future {
@@ -40,7 +43,7 @@ object Download extends App {
     }
   }
 
-  def parseYahooStockData() = {
+  def parseYahooFinancials() = {
     val data = financialDataStorage.listFiles().toList.map(file => {
       val stock = file.getName
       val text = Source.fromFile(file).mkString

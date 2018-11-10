@@ -1,19 +1,14 @@
 package stocks
 
 import org.mongodb.scala.MongoClient
-import org.mongodb.scala.model.Filters
-import stocks.codecs._
-import stocks.mongo._
+import codecs._
+import mongo._
 
 class StocksIndexStore(val client: MongoClient) {
   def store(index: String, symbols: List[String]): Unit = {
     for(symbol <- symbols) {
-      client.replaceOne("Indices", Stock(index, symbol),
-        Filters.and(
-          Filters.eq("index", index),
-          Filters.eq("symbol", index)
-        )
-      )
+      val stock = Stock(index, symbol)
+      client.replaceOne("Indices", stock, stock.primaryKeyFilter)
     }
   }
 
